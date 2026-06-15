@@ -1,69 +1,92 @@
 import React, { useCallback, useRef, useState } from 'react';
 import CameraView from './components/CameraView.jsx';
-import GamePanel from './components/GamePanel.jsx';
+import TermoBoard from './components/TermoBoard.jsx';
 import AlphabetGuide from './components/AlphabetGuide.jsx';
 import { pickRandomWord } from './lib/words.js';
 
-const HOLD_FRAMES = 14; // Número de frames que o gesto tem de ser mantido para ser aceite (ajusta conforme necessário)
+const HOLD_FRAMES = 14;
+const WORD_LENGTH = 4;
+
+function evaluateGuess(guess, secret) {
+  const result = Array(WORD_LENGTH).fill('absent');
+  const secretArr = secret.split('');
+  const guessArr = guess.split('');
+  const used = Array(WORD_LENGTH).fill(false);
+  for (let i = 0; i < WORD_LENGTH; i++) {
+    if (guessArr[i] === secretArr[i]) {
+      result[i] = 'correct';
+      used[i] = true;
+    }
+  }
+  for (let i = 0; i < WORD_LENGTH; i++) {
+    if (result[i] === 'correct') continue;
+    for (let j = 0; j < WORD_LENGTH; j++) {
+      if (!used[j] && guessArr[i] === secretArr[j]) {
+        result[i] = 'present';
+        used[j] = true;
+        break;
+      }
+    }
+  }
+  return result;
+}
 
 export default function App() {
-  const [started, setStarted] = useState(false); // Estado para controlar se o jogo começou
-  const [round, setRound] = useState(() => newRound([])); // Estado para a palavra atual, dica e letras
-  const [letterIndex, setLetterIndex] = useState(0); // Estado para a letra atual dentro da palavra
-  const [score, setScore] = useState(0); // Estado para a pontuação do jogador
-  const [solved, setSolved] = useState(0); // Estado para contar quantas palavras foram resolvidas na sequência atual
-  const [recognised, setRecognised] = useState({ letter: null, confidence: 0, progress: 0 }); // Estado para a letra reconhecida atualmente e sua confiança/progresso
-  const [showGuide, setShowGuide] = useState(false); // Estado para controlar a visibilidade do guia de gestos
-  const historyRef = useRef([]); // Ref para manter um histórico das palavras já usadas, evitando repetições
+  const [started, setStarted] = useState(false);
+  const [game, setGame] = useState(() => { const [w,h] = pickRandomWord([]); return {word:w,hint:h}; });
+  const [guesses, setGuesses] = useState([]);
+  const [currentLetters, setCurrentLetters] = useState([]);
+  const [won, setWon] = useState(false);
+  const [showGuide, setShowGuide] = useState(false);
+  const [recognised, setRecognised] = useState({ letter: null, confidence: 0, progress: 0 });
+  const historyRef = useRef([]);
 
-  // Função para iniciar uma nova rodada, escolhendo uma palavra aleatória que ainda não foi usada
-  function newRound(history) {
-    const [word, hint] = pickRandomWord(history);
-    return { word, hint, letters: word.split('') };
-  }
-
-  const advance = useCallback(() => {
-    if (letterIndex + 1 < round.letters.length) {
-      setLetterIndex((i) => i + 1);
-      setScore((s) => s + 10);
-    } else {
-      setScore((s) => s + 25);
-      setSolved((s) => s + 1);
-      historyRef.current = [...historyRef.current, round.word].slice(-20);
-      setRound(newRound(historyRef.current));
-      setLetterIndex(0);
-    }
-  }, [letterIndex, round]);
-
-  const skip = useCallback(() => {
-    historyRef.current = [...historyRef.current, round.word].slice(-20);
-    setRound(newRound(historyRef.current));
-    setLetterIndex(0);
-  }, [round]);
-
-  const target = round.letters[letterIndex];
+  const startNewGame = useCallback(() => {
+    historyRef.current = [...historyRef.current, game.word].slice(-20);
+    const [w,h] = pickRandomWord(historyRef.current);
+    setGame({ word: w, hint: h });
+    setGuesses([]);
+    setCurrentLetters([]);
+    setWon(false);
+  }, [game.word]);
 
   const onRecognition = useCallback((info) => {
     setRecognised(info);
-    if (info.committed && info.committed === target) advance();
-  }, [advance, target]);
+    if (!info.committed || won) return;
+    setCurrentLetters(prev => {
+      if (prev.length >= WORD_LENGTH) return prev;
+      return [...prev, info.committed];
+    });
+  }, [won]);
+
+  const submitGuess = useCallback(() => {
+    if (currentLetters.length !== WORD_LENGTH) return;
+    const result = evaluateGuess(currentLetters.join(''), game.word);
+    setGuesses(prev => [...prev, { letters: currentLetters, result }]);
+    setCurrentLetters([]);
+    if (result.every(r => r === 'correct')) setWon(true);
+  }, [currentLetters, game.word]);
+
+  const deleteLetter = useCallback(() => {
+    setCurrentLetters(prev => prev.slice(0, -1));
+  }, []);
 
   if (!started) {
     return (
       <div className="splash">
         <div className="splash-inner">
           <div className="splash-logo">
-            <span className="splash-g">G</span>
-            <span className="splash-rest">estos</span>
+            <span className="splash-g">T</span>
+            <span className="splash-rest">ermo</span>
           </div>
           <div>
             <span className="splash-tag">Língua Gestual Portuguesa</span>
           </div>
-          <p className="splash-sub">Aprende o alfabeto LGP jogando — a câmara lê os teus gestos em tempo real</p>
+          <p className="splash-sub">Adivinha a palavra secreta fazendo gestos LGP com a câmara</p>
           <div className="splash-how">
-            <div className="how-step"><span className="how-num">1</span><span>Aparece uma palavra de 4 letras</span></div>
-            <div className="how-step"><span className="how-num">2</span><span>Faz o gesto de cada letra à câmara</span></div>
-            <div className="how-step"><span className="how-num">3</span><span>Mantém firme — a letra acende a azul</span></div>
+            <div className="how-step"><span className="how-num">1</span><span>Há uma palavra secreta de 4 letras</span></div>
+            <div className="how-step"><span className="how-num">2</span><span>Faz gestos LGP para escrever o teu palpite</span></div>
+            <div className="how-step"><span className="how-num">3</span><span>🟩 certo · 🟨 errado lugar · ⬛ não existe</span></div>
           </div>
           <div className="splash-actions">
             <button className="btn-start" onClick={() => setStarted(true)}>Começar a jogar</button>
@@ -76,46 +99,44 @@ export default function App() {
     );
   }
 
+  const listening = !won && currentLetters.length < WORD_LENGTH;
+
   return (
     <div className="game-shell">
-      {/* HUD topo */}
       <div className="hud-top">
         <button className="hud-btn" onClick={() => setShowGuide(true)} title="Ver gestos">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
           </svg>
         </button>
-        <div className="hud-score">
-          <span className="hud-score-val">{score}</span>
-          <span className="hud-score-label">pts</span>
-        </div>
-        <div className="hud-streak">
-          {Array.from({ length: Math.min(solved, 5) }).map((_, i) => (
-            <span key={i} className="hud-star">★</span>
-          ))}
-          {solved === 0 && <span className="hud-streak-empty">0 palavras</span>}
-        </div>
-        <button className="hud-btn" onClick={skip} title="Saltar palavra">
+        <div className="hud-title">TERMO</div>
+        <button className="hud-btn" onClick={startNewGame} title="Nova palavra">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/>
+            <polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
           </svg>
         </button>
       </div>
 
-      {/* Câmara com overlay da letra alvo */}
       <CameraView
-        target={target}
+        target={listening ? '_LISTEN_' : null}
         holdFrames={HOLD_FRAMES}
         onRecognition={onRecognition}
         recognised={recognised}
+        currentLetters={currentLetters}
+        wordLength={WORD_LENGTH}
       />
 
-      {/* Painel inferior */}
-      <GamePanel
-        word={round.word}
-        hint={round.hint}
-        letterIndex={letterIndex}
+      <TermoBoard
+        guesses={guesses}
+        currentLetters={currentLetters}
+        wordLength={WORD_LENGTH}
+        won={won}
+        secretWord={game.word}
+        hint={game.hint}
         recognised={recognised}
+        onSubmit={submitGuess}
+        onDelete={deleteLetter}
+        onNewGame={startNewGame}
       />
 
       {showGuide && <AlphabetGuide onClose={() => setShowGuide(false)} />}

@@ -11,7 +11,7 @@ const HAND_CONNECTIONS = [
   [0,17],
 ];
 
-export default function CameraView({ target, holdFrames, onRecognition, recognised }) {
+export default function CameraView({ target, holdFrames, onRecognition, recognised, currentLetters, wordLength }) {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const streamRef = useRef(null);
@@ -89,13 +89,18 @@ export default function CameraView({ target, holdFrames, onRecognition, recognis
           rec = classify(lm);
         }
         ctx.restore();
-        const filt = filterRef.current.push(rec);
+
+        const isListening = targetRef.current === '_LISTEN_';
+        const filt = isListening
+          ? filterRef.current.push(rec)
+          : { candidate: rec.letter, committed: null, progress: 0 };
+
         emit({
           letter: rec.letter,
           confidence: rec.confidence,
           candidate: filt.candidate,
-          committed: filt.committed,
-          progress: filt.progress,
+          committed: isListening ? filt.committed : null,
+          progress: isListening ? filt.progress : 0,
           target: targetRef.current,
         });
       }
@@ -113,37 +118,35 @@ export default function CameraView({ target, holdFrames, onRecognition, recognis
 
   const progress = recognised?.progress || 0;
   const candidate = recognised?.candidate;
-  const matches = candidate && candidate === target;
+  const listening = target === '_LISTEN_';
 
   return (
     <div className="cam-wrap">
       <video ref={videoRef} playsInline muted className="cam-video" />
       <canvas ref={canvasRef} className="cam-canvas" />
 
-      {/* Overlay: letra alvo no canto superior esquerdo */}
       {!status && !error && (
         <div className="cam-target-badge">
-          <span className="cam-target-label">faz</span>
-          <span className="cam-target-letter">{target}</span>
+          <span className="cam-target-label">{listening ? 'gesto' : 'pausado'}</span>
+          <span className="cam-target-letter" style={{ fontSize: '1.1rem', opacity: 0.5 }}>
+            {currentLetters.length}/{wordLength}
+          </span>
         </div>
       )}
 
-      {/* Overlay: o que está a detetar, no canto superior direito */}
-      {!status && !error && candidate && (
-        <div className={`cam-detected-badge ${matches ? 'match' : ''}`}>
+      {!status && !error && candidate && listening && (
+        <div className={`cam-detected-badge ${progress > 0.5 ? 'match' : ''}`}>
           <span className="cam-target-label">vejo</span>
           <span className="cam-target-letter">{candidate}</span>
         </div>
       )}
 
-      {/* Barra de progresso no fundo da câmara */}
-      {!status && !error && progress > 0 && (
+      {!status && !error && progress > 0 && listening && (
         <div className="cam-progress-bar">
           <div className="cam-progress-fill" style={{ width: `${Math.round(progress * 100)}%` }} />
         </div>
       )}
 
-      {/* Loading / erro */}
       {(status || error) && (
         <div className={`cam-overlay ${error ? 'error' : ''}`}>
           {!error && <div className="cam-spinner" />}

@@ -648,3 +648,158 @@ body {
   line-height: 1.55;
   padding-top: 4px;
 }
+.hud-title {
+  font-family: var(--mono);
+  font-size: 1.1rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  color: var(--cyan);
+  text-shadow: 0 0 16px rgba(0,210,255,0.5);
+}
+
+.termo-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+  padding: 12px 0 4px;
+}
+
+.termo-row {
+  display: flex;
+  gap: 8px;
+}
+
+.termo-tile {
+  width: 58px;
+  height: 58px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--mono);
+  font-size: 1.6rem;
+  font-weight: 700;
+  border-radius: 10px;
+  border: 2px solid var(--border);
+  background: var(--surface2);
+  color: var(--fg);
+  position: relative;
+  overflow: hidden;
+  transition: border-color 0.15s, background 0.2s, transform 0.1s;
+}
+
+.termo-tile-filled {
+  border-color: var(--border-hi);
+  background: var(--surface3);
+  transform: scale(1.05);
+}
+
+.termo-tile-empty { opacity: 0.4; }
+
+.termo-tile.tile-correct {
+  background: #1a5c3a;
+  border-color: var(--ok);
+  color: var(--ok);
+  text-shadow: 0 0 12px rgba(0,245,160,0.5);
+  animation: popIn 0.25s ease;
+}
+
+.termo-tile.tile-present {
+  background: #4a3a00;
+  border-color: var(--gold);
+  color: var(--gold);
+  text-shadow: 0 0 12px rgba(255,209,102,0.5);
+  animation: popIn 0.25s ease;
+}
+
+.termo-tile.tile-absent {
+  background: var(--surface);
+  border-color: rgba(255,255,255,0.1);
+  color: var(--fg-dim);
+  animation: popIn 0.25s ease;
+}
+
+@keyframes popIn {
+  0% { transform: scale(0.85); opacity: 0.5; }
+  60% { transform: scale(1.1); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.termo-detecting {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  justify-content: center;
+  padding: 6px 16px;
+  background: var(--cyan-glow);
+  border: 1px solid var(--border-hi);
+  border-radius: 999px;
+  margin: 4px auto 0;
+  width: fit-content;
+}
+
+.detecting-label {
+  font-size: 0.75rem;
+  color: var(--fg-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.detecting-letter {
+  font-family: var(--mono);
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--cyan);
+  text-shadow: 0 0 12px rgba(0,210,255,0.6);
+}
+
+.termo-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  padding: 10px 0 4px;
+}
+
+.btn-action {
+  padding: 10px 22px;
+  border-radius: 10px;
+  font-family: var(--font);
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: 2px solid;
+  transition: opacity 0.15s, transform 0.1s;
+}
+
+.btn-action:disabled { opacity: 0.3; cursor: default; }
+.btn-action:not(:disabled):active { transform: scale(0.96); }
+
+.btn-delete {
+  background: transparent;
+  border-color: var(--coral);
+  color: var(--coral);
+}
+
+.btn-submit {
+  background: var(--ok);
+  border-color: var(--ok);
+  color: #000;
+}
+
+.won-banner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  background: linear-gradient(135deg, rgba(0,245,160,0.12), rgba(0,210,255,0.08));
+  border: 1px solid var(--ok);
+  border-radius: 16px;
+  margin: 8px 0;
+  text-align: center;
+  animation: popIn 0.3s ease;
+}
+
+.won-emoji { font-size: 2rem; }
+.won-text { font-size: 1rem; color: var(--fg); }
+.won-text strong { color: var(--ok); font-family: var(--mono); font-size: 1.1rem; }
