@@ -108,14 +108,22 @@ function scoreLetter(letter, lm, ext, angles, ratio) {
         near(thumbIndexAngle, 90, 45),
       ];
     case 'U':
+      // Indicador e médio juntos (dedos próximos um do outro).
+      // Limiar mais baixo (0.3) e menos tolerância (0.18) do que antes, para
+      // não invadir a zona do V — antes os dois gestos tinham quase a mesma
+      // pontuação numa gama larga de distâncias, o que fazia trocar U por V
+      // (e vice-versa) com facilidade.
       return [
         ext.index && ext.middle && !ext.ring && !ext.pinky ? 1 : 0,
-        below(indexMiddleD, 0.4, 0.3),
+        below(indexMiddleD, 0.3, 0.18),
       ];
     case 'V':
+      // Indicador e médio afastados em V. Limiar mais alto (0.65) do que
+      // antes, com a mesma tolerância reduzida, para deixar uma "zona morta"
+      // clara entre U e V em vez de uma zona onde ambos pontuavam alto.
       return [
         ext.index && ext.middle && !ext.ring && !ext.pinky ? 1 : 0,
-        above(indexMiddleD, 0.55, 0.3),
+        above(indexMiddleD, 0.65, 0.18),
       ];
     case 'W':
       return [

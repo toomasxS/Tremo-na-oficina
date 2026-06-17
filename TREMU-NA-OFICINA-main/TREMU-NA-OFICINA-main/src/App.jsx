@@ -50,9 +50,19 @@ export default function App() {
     setWon(false);
   }, [game.word]);
 
+  const lastCommittedAtRef = useRef(0);
+
   const onRecognition = useCallback((info) => {
     setRecognised(info);
     if (!info.committed || won) return;
+    // Defesa extra: só aceitar um "committed" de letra única e suportada,
+    // e ignorar dois commits a chegarem com menos de 200ms de intervalo
+    // (sinal de eventos duplicados/concorrentes em vez de um gesto novo).
+    const isValidLetter = typeof info.committed === 'string' && info.committed.length === 1;
+    if (!isValidLetter) return;
+    const now = performance.now();
+    if (now - lastCommittedAtRef.current < 200) return;
+    lastCommittedAtRef.current = now;
     setCurrentLetters(prev => {
       if (prev.length >= WORD_LENGTH) return prev;
       return [...prev, info.committed];
@@ -68,7 +78,7 @@ export default function App() {
   }, [currentLetters, game.word]);
 
   const deleteLetter = useCallback(() => {
-    setCurrentLetters(prev => prev.slice(0, -1));
+    setCurrentLetters(prev => (prev.length === 0 ? prev : prev.slice(0, -1)));
   }, []);
 
   if (!started) {

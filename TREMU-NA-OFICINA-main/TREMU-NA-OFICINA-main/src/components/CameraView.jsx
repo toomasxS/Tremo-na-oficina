@@ -11,6 +11,11 @@ const HAND_CONNECTIONS = [
   [0,17],
 ];
 
+// Contador global partilhado por todas as instâncias do componente, usado
+// para identificar de forma inequívoca qual a invocação mais recente do
+// efeito de câmara (ver comentário detalhado dentro do useEffect).
+let cameraInstanceCounter = 0;
+
 export default function CameraView({ target, holdFrames, onRecognition, recognised, currentLetters, wordLength }) {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
@@ -24,6 +29,8 @@ export default function CameraView({ target, holdFrames, onRecognition, recognis
   const onRecognitionRef = useRef(onRecognition);
   const lastVideoTimeRef = useRef(-1);
   const lastSentRef = useRef(null);
+  const activeInstanceRef = useRef(0);
+  const cancelledRef = useRef(new Set());
   const [status, setStatus] = useState('A preparar a câmara…');
   const [error, setError] = useState(null);
 
@@ -31,26 +38,56 @@ export default function CameraView({ target, holdFrames, onRecognition, recognis
   useEffect(() => { onRecognitionRef.current = onRecognition; }, [onRecognition]);
 
   useEffect(() => {
-    let cancelled = false;
+    // Em React.StrictMode (modo de desenvolvimento), o React monta,
+    // desmonta e volta a montar este efeito de propósito, para apanhar
+    // efeitos secundários mal limpos. Sem proteção, isto criava DOIS loops
+    // de deteção em paralelo por breves instantes — cada um com o seu
+    // próprio filtro de estabilidade — o que fazia comprometer duas letras
+    // quase ao mesmo tempo (ex.: "U" de um loop e algo parecido com "M" do
+    // outro), aparecendo concatenadas no mesmo quadrado ("UM"). Também
+    // deixava streams de câmara a competir entre si, o que por vezes
+    // resultava em ecrã preto depois de qualquer interação (como apagar).
+    // A variável `instanceId` garante que só a invocação MAIS RECENTE do
+    // efeito pode atualizar estado ou desenhar — instâncias antigas tornam-se
+    // no-ops assim que são limpas.
+    cameraInstanceCounter += 1;
+    const instanceId = cameraInstanceCounter;
     let landmarker = null;
+    let localRafId = 0;
+    let instanceStream = null;
+
+    function isCurrent() {
+      return !cancelledRef.current.has(instanceId) && activeInstanceRef.current === instanceId;
+    }
+
+    activeInstanceRef.current = instanceId;
 
     (async () => {
       try {
         setStatus('A carregar modelo…');
         landmarker = await loadHandLandmarker();
-        if (cancelled) return;
+        if (!isCurrent()) return;
         setStatus('A ligar câmara…');
-        streamRef.current = await attachCamera(videoRef.current);
-        if (cancelled) return;
+        const stream = await attachCamera(videoRef.current);
+        if (!isCurrent()) {
+          // Esta instância já foi substituída enquanto esperava pela câmara —
+          // fechar imediatamente o stream que acabou de abrir para não ficar
+          // nenhuma câmara "fantasma" a correr ao mesmo tempo que a atual.
+          stopCamera(stream);
+          return;
+        }
+        instanceStream = stream;
+        streamRef.current = stream;
         setStatus(null);
         loop();
       } catch (e) {
-        if (cancelled) return;
+        if (!isCurrent()) return;
         setError(e?.message || 'Erro desconhecido');
       }
     })();
 
     function emit(payload) {
+      if (!isCurrent()) return;
       const prev = lastSentRef.current;
       if (prev &&
         prev.letter === payload.letter &&
@@ -63,7 +100,7 @@ export default function CameraView({ target, holdFrames, onRecognition, recognis
     }
 
     function loop() {
-      if (cancelled) return;
+      if (!isCurrent()) return;
       const video = videoRef.current;
       const canvas = canvasRef.current;
       if (!video || !canvas || !landmarker) return;
@@ -104,14 +141,19 @@ export default function CameraView({ target, holdFrames, onRecognition, recognis
           target: targetRef.current,
         });
       }
-      rafRef.current = requestAnimationFrame(loop);
+      localRafId = requestAnimationFrame(loop);
+      rafRef.current = localRafId;
     }
 
     return () => {
-      cancelled = true;
-      cancelAnimationFrame(rafRef.current);
-      stopCamera(streamRef.current);
-      streamRef.current = null;
+      // Marcar esta instância como cancelada (em vez de uma flag booleana
+      // partilhada) para que, mesmo que o StrictMode tenha criado uma
+      // instância nova entretanto, só ESTA paragem feche ESTE stream/RAF —
+      // nunca os da instância seguinte, que pode já estar a correr.
+      cancelledRef.current.add(instanceId);
+      cancelAnimationFrame(localRafId);
+      stopCamera(streamRef.current === instanceStream ? streamRef.current : instanceStream);
+      if (streamRef.current === instanceStream) streamRef.current = null;
       lastVideoTimeRef.current = -1;
     };
   }, []);
